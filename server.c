@@ -1,10 +1,13 @@
 #include "utils.h"
-#include <pthread.h>
 
-void *accpetIncommingConnection(void *serverSocketFD);
+void sendRecievedMsgToOtherClients(int clientSocketFD, char buffer[], size_t len);
+
 void *recieveIncommingMessages(void *arg);
 void startAcceptingIncommingConnections(int serverSocketFD);
 void receiveAndPrintDataOnSeparateThreads(struct acceptedSocket *clientSocket);
+
+struct acceptedSocket acceptedClients[10];
+int numberOfClients = 0;
 
 int main()
 {
@@ -20,6 +23,7 @@ int main()
     startAcceptingIncommingConnections(serverSocketFD);
 
     // Cleanup
+    free(serverAddress);
     closesocket(serverSocketFD);
     WSACleanup();
     return 0;
@@ -27,23 +31,6 @@ int main()
 
 void startAcceptingIncommingConnections(int serverSocketFD)
 {
-    int *serverFDPtr = malloc(sizeof(int));
-    if (serverFDPtr == NULL)
-    {
-        perror("Failed to allocate memory");
-        exit(EXIT_FAILURE);
-    }
-    *serverFDPtr = serverSocketFD;
-
-    pthread_t id;
-    pthread_create(&id, NULL, accpetIncommingConnection, (void *)serverFDPtr);
-    pthread_detach(id); // Avoid memory leaks
-}
-
-void *accpetIncommingConnection(void *arg)
-{
-    int serverSocketFD = *(int *)arg; // Copy the value
-    free(arg);                        // Free memory after copying
     while (TRUE)
     {
         struct acceptedSocket *clientSocket = foo(&serverSocketFD); // Pass address of local copy
@@ -52,9 +39,13 @@ void *accpetIncommingConnection(void *arg)
             printf("Failed to accept client.\n");
             continue;
         }
+        if (numberOfClients < 10)
+        {
+            acceptedClients[numberOfClients] = *clientSocket;
+            numberOfClients++;
+        }
         receiveAndPrintDataOnSeparateThreads(clientSocket);
     }
-    return NULL;
 }
 
 void receiveAndPrintDataOnSeparateThreads(struct acceptedSocket *clientSocket)
@@ -78,7 +69,7 @@ void *recieveIncommingMessages(void *arg)
     struct acceptedSocket *clientSocket = (struct acceptedSocket *)arg;
     if (clientSocket == NULL || clientSocket->clientSocketFD < 0)
     {
-        free(clientSocket);
+        free(arg);
         return NULL;
     }
 
@@ -90,21 +81,43 @@ void *recieveIncommingMessages(void *arg)
         if (bytesReceived > 0)
         {
             buffer[bytesReceived] = '\0'; // Null-terminate received data
-            printf("The response was:\n%s", buffer);
+            printf("%d :%s \n", clientSocket->clientSocketFD, buffer);
+
+            size_t len = strlen(buffer);
+            sendRecievedMsgToOtherClients(clientSocket->clientSocketFD, buffer, len);
         }
         else if (bytesReceived == 0)
         {
-            printf("Client disconnected.\n");
-            free(clientSocket);
+            printf("%d disconnected.\n", clientSocket->clientSocketFD);
             break;
         }
         else
         {
             printf("recv failed: %d\n", WSAGetLastError());
-            free(clientSocket);
             break;
         }
     }
+
+    printf("%d disconnected.\n", clientSocket->clientSocketFD);
     closesocket(clientSocket->clientSocketFD);
-    free(clientSocket);
+    free(arg);
 }
+
+void sendRecievedMsgToOtherClients(int clientSocketFD, char buffer[], size_t len)
+{
+    for (int i = 0; i < numberOfClients; i++)
+    {
+        if (acceptedClients[i].clientSocketFD != clientSocketFD)
+        {
+            char msg[32];
+            if (len < 1024 - 1) // Ensure there's space for '\n' and '\0'
+            {
+                buffer[len] = '\n';
+                buffer[len + 1] = '\0'; // Null-terminate the string
+            }
+            sprintf(msg, "%d", clientSocketFD);
+            send(acceptedClients[i].clientSocketFD, msg, strlen(msg), 0);
+            send(acceptedClients[i].clientSocketFD, buffer, strlen(buffer), 0);
+        }
+    }
+};
