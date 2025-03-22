@@ -78,6 +78,7 @@ void *recieveIncommingMessages(void *arg)
     {
         // Receive data
         int bytesReceived = recv(clientSocket->clientSocketFD, buffer, sizeof(buffer) - 1, 0);
+
         if (bytesReceived > 0)
         {
             buffer[bytesReceived] = '\0'; // Null-terminate received data
@@ -116,7 +117,7 @@ void sendRecievedMsgToOtherClients(int clientSocketFD, char buffer[], size_t len
                 buffer[len + 1] = '\0'; // Null-terminate the string
             }
             sprintf(msg, "%d", clientSocketFD);
-            send(acceptedClients[i].clientSocketFD, msg, strlen(msg), 0);
+            // send(acceptedClients[i].clientSocketFD, msg, strlen(msg), 0);
             send(acceptedClients[i].clientSocketFD, buffer, strlen(buffer), 0);
         }
     }
