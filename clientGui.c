@@ -19,11 +19,11 @@ void getCurrentTime(char *buffer, int len);
 void AddValue(int newValue);
 void DrawGraph(float lineThickness);
 char *startListeningAndPrintMessagesFromTheServer(int socketFD);
-
+int clamp(int value);
 int main(void)
 {
     InitWindow(800, 600, "Raylib Graph");
-    SetTargetFPS(60); // Set our game to run at 60 frames-per-second
+    SetTargetFPS(10); // Set our game to run at 60 frames-per-second
     float lineThickness = 5;
 
     int socketFD = CreateIPV4Socket();
@@ -93,8 +93,10 @@ void getCurrentTime(char *buffer, int len)
     snprintf(buffer, len, "%02d:%02d:%02d", t->tm_hour, t->tm_min, t->tm_sec);
 }
 
-void AddValue(int newValue)
+void AddValue(int val)
 {
+
+    int newValue = clamp(val);
     if (valueCount < MAX_VALUES)
     {
         values[valueCount] = newValue;
@@ -172,4 +174,13 @@ void DrawGraph(float lineThickness)
             }
         }
     }
+}
+
+int clamp(int value)
+{
+    if (value < 0)
+        return 0;
+    if (value > 100)
+        return 100;
+    return value;
 }
