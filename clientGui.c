@@ -18,10 +18,11 @@ int animatingIndex = -1;
 void getCurrentTime(char *buffer, int len);
 void AddValue(int newValue);
 void DrawGraph(float lineThickness);
-char *startListeningAndPrintMessagesFromTheServer(int socketFD);
+void *startListeningAndPrintMessagesFromTheServer(void *arg);
 int clamp(int value);
 int main(void)
 {
+    pthread_t id;
     InitWindow(800, 600, "Raylib Graph");
     SetTargetFPS(10); // Set our game to run at 60 frames-per-second
     float lineThickness = 5;
@@ -33,14 +34,9 @@ int main(void)
         printf("successful conection");
 
     // Main game loop
+    pthread_create(&id, NULL, startListeningAndPrintMessagesFromTheServer, (void *)&socketFD);
     while (!WindowShouldClose()) // Detect window close button or ESC key
     {
-        const char *buffer = startListeningAndPrintMessagesFromTheServer(socketFD);
-        char *endptr;
-        errno = 0;
-        long value = strtol(buffer, &endptr, 10);
-
-        AddValue(value);
 
         if (animationProgress < 1.0f)
         {
@@ -58,32 +54,42 @@ int main(void)
 
     return 0;
 }
-char *startListeningAndPrintMessagesFromTheServer(int socketFD)
+void *startListeningAndPrintMessagesFromTheServer(void *arg)
 {
-    char *buffer = malloc(1024); // Allocate memory dynamically
-    if (!buffer)
-    {
-        printf("Memory allocation failed\n");
-        return NULL;
-    }
 
-    int bytesReceived = recv(socketFD, buffer, 1023, 0);
-    if (bytesReceived > 0)
+    while (1)
     {
-        buffer[bytesReceived] = '\0'; // Null-terminate received data
-        return buffer;
-    }
-    else if (bytesReceived == 0)
-    {
-        printf("Connection closed by server\n");
-    }
-    else
-    {
-        printf("recv failed: %d\n", WSAGetLastError());
-    }
 
-    free(buffer); // Free memory before returning NULL
-    return NULL;
+        int socketFD = *(int *)arg;
+        char *buffer = malloc(1024); // Allocate memory dynamically
+        if (!buffer)
+        {
+            printf("Memory allocation failed\n");
+            continue;
+        }
+
+        int bytesReceived = recv(socketFD, buffer, 1023, 0);
+        if (bytesReceived > 0)
+        {
+            buffer[bytesReceived] = '\0'; // Null-terminate received data
+            char *endptr;
+            errno = 0;
+            long value = strtol(buffer, &endptr, 10);
+            AddValue(value);
+            continue;
+        }
+        else if (bytesReceived == 0)
+        {
+            printf("Connection closed by server\n");
+        }
+        else
+        {
+            printf("recv failed: %d\n", WSAGetLastError());
+        }
+
+        free(buffer); // Free memory before returning NULL
+        continue;
+    }
 }
 
 void getCurrentTime(char *buffer, int len)
